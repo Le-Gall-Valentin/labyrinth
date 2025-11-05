@@ -14,7 +14,7 @@ namespace Labyrinth.Build
         /// <exception cref="InvalidOperationException">Some keys are missing or are not placed.</exception>
         public void Dispose()
         {
-            if (unplacedKey.HasItems || emptyKeyRoom is not null)
+            if (_unplacedKeys.Count > 0 || _emptyKeyRooms.Count > 0)
             {
                 throw new InvalidOperationException("Unmatched key/door creation");
             }
@@ -24,17 +24,17 @@ namespace Labyrinth.Build
         /// Create a new door and place its key in a previously created empty key room (if any).
         /// </summary>
         /// <returns>Created door</returns>
-        /// <exception cref="NotSupportedException">Multiple doors before key placement</exception>
         public Door NewDoor()
         {
-            if (unplacedKey.HasItems)
-            {
-                throw new NotSupportedException("Unable to handle multiple doors before key placement");
-            }
             var door = new Door();
-
-            door.LockAndTakeKey(unplacedKey);
-            PlaceKey();
+            
+            var keyInv = new MyInventory();
+            
+            door.LockAndTakeKey(keyInv);
+            
+            _unplacedKeys.Enqueue(keyInv);
+            
+            PlaceKeysIfPossible();
             return door;
         }
 
@@ -42,28 +42,30 @@ namespace Labyrinth.Build
         /// Create a new room with key and place the key if a door was previously created.
         /// </summary>
         /// <returns>Created key room</returns>
-        /// <exception cref="NotSupportedException">Multiple keyss before key placement</exception>
         public Room NewKeyRoom()
         {
-            if (emptyKeyRoom is not null)
-            {
-                throw new NotSupportedException("Unable to handle multiple keys before door creation");
-            }
-            var room = emptyKeyRoom = new Room();
-            PlaceKey();
+            var room = new Room();
+            _emptyKeyRooms.Enqueue(room);
+            
+            PlaceKeysIfPossible();
             return room;
         }
 
-        private void PlaceKey()
+        private void PlaceKeysIfPossible()
         {
-            if (unplacedKey.HasItems && emptyKeyRoom is not null)
+            while (_unplacedKeys.Count > 0 && _emptyKeyRooms.Count > 0)
             {
-                emptyKeyRoom.Pass().MoveItemFrom(unplacedKey);
-                emptyKeyRoom = null;
+                var keyInv = _unplacedKeys.Peek();
+                var room   = _emptyKeyRooms.Peek();
+                
+                room.Pass().MoveItemFrom(keyInv);
+                
+                _unplacedKeys.Dequeue();
+                _emptyKeyRooms.Dequeue();
             }
         }
-
-        private readonly MyInventory unplacedKey = new();
-        private Room? emptyKeyRoom = null;
+        
+        private readonly Queue<MyInventory> _unplacedKeys = new();
+        private readonly Queue<Room> _emptyKeyRooms = new();
     }
 }
